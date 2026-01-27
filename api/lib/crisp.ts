@@ -1,8 +1,8 @@
-import Crisp from 'node-crisp-api';
+import Crisp from 'crisp-api';
 
-const client = new Crisp();
+const CrispClient = new Crisp();
 
-client.authenticateTier(
+CrispClient.authenticateTier(
   'plugin',
   process.env.CRISP_PLUGIN_ID || '',
   process.env.CRISP_PLUGIN_SECRET || ''
@@ -18,10 +18,10 @@ interface AddNoteParams {
 export async function addNote(params: AddNoteParams): Promise<void> {
   const { websiteId, sessionId, issueUrl, issueTitle } = params;
 
-  await client.website.sendMessageInConversation(websiteId, sessionId, {
+  await CrispClient.website.sendMessageInConversation(websiteId, sessionId, {
     type: 'note',
+    content: `🐛 Bug criado no GitHub: ${issueUrl}\nTítulo: ${issueTitle}`,
     from: 'operator',
     origin: 'chat',
-    content: `🐛 Bug criado no GitHub: ${issueUrl}\nTítulo: ${issueTitle}`,
   });
 }
