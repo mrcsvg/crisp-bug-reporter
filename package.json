@@ -1,0 +1,20 @@
+{
+  "name": "crisp-bug-reporter",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:plugin\" \"npm run dev:api\"",
+    "dev:plugin": "npm run dev --workspace=plugin",
+    "dev:api": "vercel dev",
+    "build": "npm run build --workspace=plugin",
+    "lint": "eslint . --ext .ts,.tsx"
+  },
+  "workspaces": [
+    "plugin",
+    "api"
+  ],
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
+  }
+}
