@@ -1,0 +1,15 @@
+{
+  "name": "crisp-bug-reporter-api",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@octokit/rest": "^20.0.2",
+    "node-crisp-api": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "@vercel/node": "^3.0.17",
+    "typescript": "^5.3.3"
+  }
+}
