@@ -34,10 +34,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = req.body as RequestBody;
+    console.log('Received body:', JSON.stringify(body, null, 2));
+
     const { session_id, website_id, messages, meta, device } = body;
 
-    if (!session_id || !website_id || !messages) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    // Check which fields are missing
+    const missingFields = [];
+    if (!session_id) missingFields.push('session_id');
+    if (!website_id) missingFields.push('website_id');
+    if (!messages || messages.length === 0) missingFields.push('messages');
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        error: `Missing required fields: ${missingFields.join(', ')}`,
+        received: { session_id, website_id, messagesCount: messages?.length }
+      });
     }
 
     // 1. Analyze conversation with Claude

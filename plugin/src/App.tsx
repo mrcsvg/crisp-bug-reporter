@@ -34,20 +34,27 @@ export default function App() {
       })
 
       const conversation = window.$crisp.data.conversation
+      console.log('Crisp conversation data:', conversation)
+
       if (!conversation) {
         throw new Error('Não foi possível obter dados da conversa')
       }
 
+      // Build request body with available data
+      const requestBody = {
+        session_id: conversation.session_id,
+        website_id: conversation.website_id,
+        messages: conversation.messages || [],
+        meta: conversation.meta,
+        device: conversation.device,
+      }
+
+      console.log('Request body:', requestBody)
+
       const response = await fetch('/api/create-bug', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: conversation.session_id,
-          website_id: conversation.website_id,
-          messages: conversation.messages,
-          meta: conversation.meta,
-          device: conversation.device,
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       if (!response.ok) {
