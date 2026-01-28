@@ -8,13 +8,26 @@ interface BugResult {
   title: string;
 }
 
+// Get URL parameters passed by Crisp
+function getUrlParams() {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    session_id: params.get('session_id'),
+    website_id: params.get('website_id'),
+    token: params.get('token'),
+  };
+}
+
 export default function App() {
   const [status, setStatus] = useState<Status>('idle')
   const [result, setResult] = useState<BugResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [params] = useState(getUrlParams)
 
   useEffect(() => {
-    window.$crisp.setHeight(150)
+    if (window.$crisp) {
+      window.$crisp.setHeight(150)
+    }
   }, [])
 
   const handleCreateBug = async () => {
@@ -22,39 +35,18 @@ export default function App() {
     setError(null)
 
     try {
-      window.$crisp.acquireData('conversation')
+      const { session_id, website_id } = params;
 
-      // Wait for data to be acquired
-      await new Promise<void>((resolve) => {
-        window.$crisp.onDataAcquired = (namespace: string) => {
-          if (namespace === 'conversation') {
-            resolve()
-          }
-        }
-      })
+      console.log('URL params:', params);
 
-      const conversation = window.$crisp.data.conversation
-      console.log('Crisp conversation data:', conversation)
-
-      if (!conversation) {
-        throw new Error('Não foi possível obter dados da conversa')
+      if (!session_id || !website_id) {
+        throw new Error('Parâmetros da conversa não encontrados na URL')
       }
-
-      // Build request body with available data
-      const requestBody = {
-        session_id: conversation.session_id,
-        website_id: conversation.website_id,
-        messages: conversation.messages || [],
-        meta: conversation.meta,
-        device: conversation.device,
-      }
-
-      console.log('Request body:', requestBody)
 
       const response = await fetch('/api/create-bug', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({ session_id, website_id }),
       })
 
       if (!response.ok) {

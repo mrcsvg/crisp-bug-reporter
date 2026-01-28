@@ -1,30 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { analyzeBug } from './lib/claude';
 import { createIssue } from './lib/github';
-import { addNote } from './lib/crisp';
+import { addNote, getConversation } from './lib/crisp';
 
 interface RequestBody {
   session_id: string;
   website_id: string;
-  messages: Array<{
-    type: string;
-    from: string;
-    content: string;
-    timestamp: number;
-  }>;
-  meta?: {
-    email?: string;
-  };
-  device?: {
-    capabilities?: string[];
-    geolocation?: {
-      country?: string;
-    };
-    system?: {
-      os?: { name?: string; version?: string };
-      browser?: { name?: string; version?: string };
-    };
-  };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -36,47 +17,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const body = req.body as RequestBody;
     console.log('Received body:', JSON.stringify(body, null, 2));
 
-    const { session_id, website_id, messages, meta, device } = body;
+    const { session_id, website_id } = body;
 
-    // Check which fields are missing
-    const missingFields = [];
-    if (!session_id) missingFields.push('session_id');
-    if (!website_id) missingFields.push('website_id');
-    if (!messages || messages.length === 0) missingFields.push('messages');
-
-    if (missingFields.length > 0) {
+    if (!session_id || !website_id) {
       return res.status(400).json({
-        error: `Missing required fields: ${missingFields.join(', ')}`,
-        received: { session_id, website_id, messagesCount: messages?.length }
+        error: 'Missing required fields: session_id and website_id',
       });
     }
 
-    // 1. Analyze conversation with Claude
+    // 1. Fetch conversation data from Crisp API
+    console.log('Fetching conversation from Crisp...');
+    const { messages, meta } = await getConversation(website_id, session_id);
+
+    if (!messages || messages.length === 0) {
+      return res.status(400).json({ error: 'Conversa sem mensagens' });
+    }
+
+    console.log(`Found ${messages.length} messages`);
+
+    // 2. Analyze conversation with Claude
+    console.log('Analyzing with Claude...');
     const analysis = await analyzeBug(messages);
 
-    // 2. Build user context
+    // 3. Build user context
     const userContext = {
       email: meta?.email,
-      device: device?.capabilities?.join(', '),
-      browser: device?.system?.browser
-        ? `${device.system.browser.name} ${device.system.browser.version}`
+      device: meta?.device?.capabilities?.join(', '),
+      browser: meta?.device?.system?.browser
+        ? `${meta.device.system.browser.name} ${meta.device.system.browser.version}`
         : undefined,
-      os: device?.system?.os
-        ? `${device.system.os.name} ${device.system.os.version}`
+      os: meta?.device?.system?.os
+        ? `${meta.device.system.os.name} ${meta.device.system.os.version}`
         : undefined,
-      country: device?.geolocation?.country,
+      country: meta?.device?.geolocation?.country,
     };
 
     const crispUrl = `https://app.crisp.chat/website/${website_id}/inbox/${session_id}`;
 
-    // 3. Create GitHub issue
+    // 4. Create GitHub issue
+    console.log('Creating GitHub issue...');
     const issue = await createIssue({
       analysis,
       userContext,
       crispUrl,
     });
 
-    // 4. Add note to Crisp conversation (non-blocking)
+    // 5. Add note to Crisp conversation (non-blocking)
     addNote({
       websiteId: website_id,
       sessionId: session_id,
