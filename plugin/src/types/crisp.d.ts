@@ -28,7 +28,7 @@ interface CrispSDK {
   setHeight: (height: number) => void;
   acquireData: (namespace: 'conversation' | 'operator' | 'operators' | 'plugin_settings') => void;
   showToast: (type: 'success' | 'failure' | 'info', message: string, action?: { label: string; url: string }) => void;
-  onDataAcquired: (callback: (namespace: string) => void) => void;
+  onDataAcquired: ((namespace: string) => void) | null;
   data: {
     conversation?: CrispConversation;
     operator?: {

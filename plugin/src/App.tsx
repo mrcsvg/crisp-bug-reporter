@@ -26,11 +26,11 @@ export default function App() {
 
       // Wait for data to be acquired
       await new Promise<void>((resolve) => {
-        window.$crisp.onDataAcquired((namespace) => {
+        window.$crisp.onDataAcquired = (namespace: string) => {
           if (namespace === 'conversation') {
             resolve()
           }
-        })
+        }
       })
 
       const conversation = window.$crisp.data.conversation
