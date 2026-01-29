@@ -17,6 +17,7 @@ interface CreateIssueParams {
   analysis: BugAnalysis;
   userContext: UserContext;
   crispUrl: string;
+  repo: string;
 }
 
 export interface GitHubIssue {
@@ -26,11 +27,11 @@ export interface GitHubIssue {
 }
 
 export async function createIssue(params: CreateIssueParams): Promise<GitHubIssue> {
-  const { analysis, userContext, crispUrl } = params;
-  const [owner, repo] = (process.env.GITHUB_REPO || '').split('/');
+  const { analysis, userContext, crispUrl, repo: repoPath } = params;
+  const [owner, repo] = repoPath.split('/');
 
   if (!owner || !repo) {
-    throw new Error('GITHUB_REPO must be in format owner/repo');
+    throw new Error('Repository must be in format owner/repo');
   }
 
   const stepsSection = analysis.stepsToReproduce.length > 0

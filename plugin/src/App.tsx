@@ -18,6 +18,27 @@ function getUrlParams() {
   };
 }
 
+// Get plugin settings from Crisp
+async function getPluginSettings(): Promise<{ github_repo?: string }> {
+  return new Promise((resolve) => {
+    if (!window.$crisp) {
+      resolve({});
+      return;
+    }
+
+    window.$crisp.onDataAcquired = (namespace: string) => {
+      if (namespace === 'plugin_settings') {
+        const settings = window.$crisp.data?.plugin_settings as { settings?: { github_repo?: string } } | undefined;
+        resolve(settings?.settings || {});
+      }
+    };
+    window.$crisp.acquireData('plugin_settings');
+
+    // Timeout fallback
+    setTimeout(() => resolve({}), 3000);
+  });
+}
+
 export default function App() {
   const [status, setStatus] = useState<Status>('idle')
   const [result, setResult] = useState<BugResult | null>(null)
@@ -43,10 +64,18 @@ export default function App() {
         throw new Error('Parâmetros da conversa não encontrados na URL')
       }
 
+      // Get plugin settings (github_repo)
+      const settings = await getPluginSettings();
+      console.log('Plugin settings:', settings);
+
+      if (!settings.github_repo) {
+        throw new Error('Repositório GitHub não configurado nas settings do plugin')
+      }
+
       const response = await fetch('/api/create-bug', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id, website_id }),
+        body: JSON.stringify({ session_id, website_id, github_repo: settings.github_repo }),
       })
 
       if (!response.ok) {

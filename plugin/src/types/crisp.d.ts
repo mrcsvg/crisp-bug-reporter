@@ -37,6 +37,9 @@ interface CrispSDK {
       first_name: string;
       last_name: string;
     };
+    plugin_settings?: {
+      settings?: Record<string, unknown>;
+    };
   };
 }
 
