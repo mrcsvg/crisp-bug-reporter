@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-type Status = 'idle' | 'loading' | 'success' | 'error' | 'config'
+type Status = 'idle' | 'loading' | 'success' | 'error' | 'no-config'
 
 interface BugResult {
   issueUrl: string;
@@ -18,45 +18,43 @@ function getUrlParams() {
   };
 }
 
-// LocalStorage key for settings (per website)
-function getStorageKey(websiteId: string) {
-  return `crisp-bug-reporter-${websiteId}`;
-}
-
 export default function App() {
-  const [status, setStatus] = useState<Status>('idle')
+  const [status, setStatus] = useState<Status>('loading')
   const [result, setResult] = useState<BugResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [params] = useState(getUrlParams)
-  const [githubRepo, setGithubRepo] = useState<string>('')
-  const [repoInput, setRepoInput] = useState<string>('')
+  const [githubRepo, setGithubRepo] = useState<string | null>(null)
 
   useEffect(() => {
     if (window.$crisp) {
-      window.$crisp.setHeight(180)
+      window.$crisp.setHeight(150)
     }
 
-    // Load saved repo from localStorage
-    if (params.website_id) {
-      const saved = localStorage.getItem(getStorageKey(params.website_id));
-      if (saved) {
-        setGithubRepo(saved);
+    // Load settings from API
+    async function loadSettings() {
+      if (!params.website_id) {
+        setStatus('error')
+        setError('Website ID não encontrado')
+        return
+      }
+
+      try {
+        const response = await fetch(`/api/get-settings?website_id=${params.website_id}`)
+        const data = await response.json()
+
+        if (data.settings?.github_repo) {
+          setGithubRepo(data.settings.github_repo)
+          setStatus('idle')
+        } else {
+          setStatus('no-config')
+        }
+      } catch (err) {
+        setStatus('no-config')
       }
     }
-  }, [params.website_id])
 
-  const handleSaveConfig = () => {
-    if (!repoInput || !repoInput.includes('/')) {
-      setError('Formato inválido. Use: owner/repo')
-      return
-    }
-    if (params.website_id) {
-      localStorage.setItem(getStorageKey(params.website_id), repoInput);
-      setGithubRepo(repoInput);
-      setStatus('idle');
-      setError(null);
-    }
-  }
+    loadSettings()
+  }, [params.website_id])
 
   const handleCreateBug = async () => {
     setStatus('loading')
@@ -70,7 +68,7 @@ export default function App() {
       }
 
       if (!githubRepo) {
-        setStatus('config')
+        setStatus('no-config')
         return
       }
 
@@ -110,58 +108,20 @@ export default function App() {
     setError(null)
   }
 
-  const handleOpenConfig = () => {
-    setRepoInput(githubRepo)
-    setStatus('config')
-    setError(null)
-  }
-
   return (
     <div className="container">
-      <div className="header">
-        <h1>Bug Reporter</h1>
-        {status !== 'config' && githubRepo && (
-          <button onClick={handleOpenConfig} className="btn-icon" title="Configurações">
-            ⚙️
-          </button>
-        )}
-      </div>
+      <h1>Bug Reporter</h1>
 
-      {status === 'config' && (
-        <div className="config">
-          <label>Repositório GitHub:</label>
-          <input
-            type="text"
-            value={repoInput}
-            onChange={(e) => setRepoInput(e.target.value)}
-            placeholder="owner/repo"
-            className="input"
-          />
-          {error && <p className="error-text">{error}</p>}
-          <button onClick={handleSaveConfig} className="btn btn-primary">
-            Salvar
-          </button>
-          {githubRepo && (
-            <button onClick={() => setStatus('idle')} className="btn btn-secondary">
-              Cancelar
-            </button>
-          )}
+      {status === 'loading' && (
+        <div className="loading">
+          <div className="spinner" />
+          <p>Carregando...</p>
         </div>
       )}
 
-      {status === 'idle' && !githubRepo && (
-        <div className="config">
-          <p>Configure o repositório GitHub:</p>
-          <input
-            type="text"
-            value={repoInput}
-            onChange={(e) => setRepoInput(e.target.value)}
-            placeholder="owner/repo"
-            className="input"
-          />
-          <button onClick={handleSaveConfig} className="btn btn-primary">
-            Salvar
-          </button>
+      {status === 'no-config' && (
+        <div className="no-config">
+          <p>Configure o repositório GitHub nas configurações do plugin.</p>
         </div>
       )}
 
@@ -172,13 +132,6 @@ export default function App() {
             Criar Bug no GitHub
           </button>
         </>
-      )}
-
-      {status === 'loading' && (
-        <div className="loading">
-          <div className="spinner" />
-          <p>Analisando conversa...</p>
-        </div>
       )}
 
       {status === 'success' && result && (
