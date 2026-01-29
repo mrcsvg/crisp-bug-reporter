@@ -6,7 +6,6 @@ import { addNote, getConversation } from './lib/crisp';
 interface RequestBody {
   session_id: string;
   website_id: string;
-  github_repo?: string;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -18,10 +17,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const body = req.body as RequestBody;
     console.log('Received body:', JSON.stringify(body, null, 2));
 
-    const { session_id, website_id, github_repo } = body;
+    const { session_id, website_id } = body;
 
-    // Use github_repo from request or fallback to env
-    const repo = github_repo || process.env.GITHUB_REPO;
+    const repo = process.env.GITHUB_REPO;
 
     if (!session_id || !website_id) {
       return res.status(400).json({

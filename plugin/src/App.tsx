@@ -64,18 +64,10 @@ export default function App() {
         throw new Error('Parâmetros da conversa não encontrados na URL')
       }
 
-      // Get plugin settings (github_repo)
-      const settings = await getPluginSettings();
-      console.log('Plugin settings:', settings);
-
-      if (!settings.github_repo) {
-        throw new Error('Repositório GitHub não configurado nas settings do plugin')
-      }
-
       const response = await fetch('/api/create-bug', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id, website_id, github_repo: settings.github_repo }),
+        body: JSON.stringify({ session_id, website_id }),
       })
 
       if (!response.ok) {
