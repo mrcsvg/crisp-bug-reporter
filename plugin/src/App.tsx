@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-type Status = 'idle' | 'loading' | 'success' | 'error'
+type Status = 'idle' | 'loading' | 'success' | 'error' | 'config'
 
 interface BugResult {
   issueUrl: string;
@@ -18,25 +18,9 @@ function getUrlParams() {
   };
 }
 
-// Get plugin settings from Crisp
-async function getPluginSettings(): Promise<{ github_repo?: string }> {
-  return new Promise((resolve) => {
-    if (!window.$crisp) {
-      resolve({});
-      return;
-    }
-
-    window.$crisp.onDataAcquired = (namespace: string) => {
-      if (namespace === 'plugin_settings') {
-        const settings = window.$crisp.data?.plugin_settings as { settings?: { github_repo?: string } } | undefined;
-        resolve(settings?.settings || {});
-      }
-    };
-    window.$crisp.acquireData('plugin_settings');
-
-    // Timeout fallback
-    setTimeout(() => resolve({}), 3000);
-  });
+// LocalStorage key for settings (per website)
+function getStorageKey(websiteId: string) {
+  return `crisp-bug-reporter-${websiteId}`;
 }
 
 export default function App() {
@@ -44,12 +28,35 @@ export default function App() {
   const [result, setResult] = useState<BugResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [params] = useState(getUrlParams)
+  const [githubRepo, setGithubRepo] = useState<string>('')
+  const [repoInput, setRepoInput] = useState<string>('')
 
   useEffect(() => {
     if (window.$crisp) {
-      window.$crisp.setHeight(150)
+      window.$crisp.setHeight(180)
     }
-  }, [])
+
+    // Load saved repo from localStorage
+    if (params.website_id) {
+      const saved = localStorage.getItem(getStorageKey(params.website_id));
+      if (saved) {
+        setGithubRepo(saved);
+      }
+    }
+  }, [params.website_id])
+
+  const handleSaveConfig = () => {
+    if (!repoInput || !repoInput.includes('/')) {
+      setError('Formato inválido. Use: owner/repo')
+      return
+    }
+    if (params.website_id) {
+      localStorage.setItem(getStorageKey(params.website_id), repoInput);
+      setGithubRepo(repoInput);
+      setStatus('idle');
+      setError(null);
+    }
+  }
 
   const handleCreateBug = async () => {
     setStatus('loading')
@@ -58,16 +65,19 @@ export default function App() {
     try {
       const { session_id, website_id } = params;
 
-      console.log('URL params:', params);
-
       if (!session_id || !website_id) {
-        throw new Error('Parâmetros da conversa não encontrados na URL')
+        throw new Error('Parâmetros da conversa não encontrados')
+      }
+
+      if (!githubRepo) {
+        setStatus('config')
+        return
       }
 
       const response = await fetch('/api/create-bug', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id, website_id }),
+        body: JSON.stringify({ session_id, website_id, github_repo: githubRepo }),
       })
 
       if (!response.ok) {
@@ -79,14 +89,18 @@ export default function App() {
       setResult(data)
       setStatus('success')
 
-      window.$crisp.showToast('success', 'Bug criado com sucesso!', {
-        label: 'Ver issue',
-        url: data.issueUrl,
-      })
+      if (window.$crisp) {
+        window.$crisp.showToast('success', 'Bug criado com sucesso!', {
+          label: 'Ver issue',
+          url: data.issueUrl,
+        })
+      }
     } catch (err) {
       setStatus('error')
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
-      window.$crisp.showToast('failure', 'Erro ao criar bug')
+      if (window.$crisp) {
+        window.$crisp.showToast('failure', 'Erro ao criar bug')
+      }
     }
   }
 
@@ -96,14 +110,68 @@ export default function App() {
     setError(null)
   }
 
+  const handleOpenConfig = () => {
+    setRepoInput(githubRepo)
+    setStatus('config')
+    setError(null)
+  }
+
   return (
     <div className="container">
-      <h1>Bug Reporter</h1>
+      <div className="header">
+        <h1>Bug Reporter</h1>
+        {status !== 'config' && githubRepo && (
+          <button onClick={handleOpenConfig} className="btn-icon" title="Configurações">
+            ⚙️
+          </button>
+        )}
+      </div>
 
-      {status === 'idle' && (
-        <button onClick={handleCreateBug} className="btn btn-primary">
-          Criar Bug no GitHub
-        </button>
+      {status === 'config' && (
+        <div className="config">
+          <label>Repositório GitHub:</label>
+          <input
+            type="text"
+            value={repoInput}
+            onChange={(e) => setRepoInput(e.target.value)}
+            placeholder="owner/repo"
+            className="input"
+          />
+          {error && <p className="error-text">{error}</p>}
+          <button onClick={handleSaveConfig} className="btn btn-primary">
+            Salvar
+          </button>
+          {githubRepo && (
+            <button onClick={() => setStatus('idle')} className="btn btn-secondary">
+              Cancelar
+            </button>
+          )}
+        </div>
+      )}
+
+      {status === 'idle' && !githubRepo && (
+        <div className="config">
+          <p>Configure o repositório GitHub:</p>
+          <input
+            type="text"
+            value={repoInput}
+            onChange={(e) => setRepoInput(e.target.value)}
+            placeholder="owner/repo"
+            className="input"
+          />
+          <button onClick={handleSaveConfig} className="btn btn-primary">
+            Salvar
+          </button>
+        </div>
+      )}
+
+      {status === 'idle' && githubRepo && (
+        <>
+          <p className="repo-info">📁 {githubRepo}</p>
+          <button onClick={handleCreateBug} className="btn btn-primary">
+            Criar Bug no GitHub
+          </button>
+        </>
       )}
 
       {status === 'loading' && (
