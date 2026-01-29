@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bug Reporter - Configuração</title>
-  <script src="https://assets.crisp.chat/widget/javascripts/sdk.min.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -23,7 +22,7 @@
       font-weight: 600;
       margin-bottom: 8px;
     }
-    p {
+    .subtitle {
       color: #666;
       margin-bottom: 20px;
     }
@@ -63,77 +62,95 @@
     button:hover {
       background: #4a5ab9;
     }
-    .success {
-      background: #e8f5e9;
-      color: #2e7d32;
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .message {
       padding: 12px;
       border-radius: 6px;
       margin-top: 16px;
-      display: none;
+    }
+    .success {
+      background: #e8f5e9;
+      color: #2e7d32;
     }
     .error {
       background: #ffebee;
       color: #c62828;
-      padding: 12px;
-      border-radius: 6px;
-      margin-top: 16px;
-      display: none;
+    }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
     }
   </style>
 </head>
 <body>
-  <h1>Bug Reporter</h1>
-  <p>Configure onde os bugs serão criados</p>
+  <div id="loading" class="loading">Carregando...</div>
 
-  <label for="github_repo">Repositório GitHub</label>
-  <input type="text" id="github_repo" placeholder="owner/repo" />
-  <div class="hint">Exemplo: mrcsvg/meu-projeto</div>
+  <div id="content" style="display: none;">
+    <h1>Bug Reporter</h1>
+    <p class="subtitle">Configure onde os bugs serão criados</p>
 
-  <button onclick="saveSettings()">Salvar</button>
+    <label for="github_repo">Repositório GitHub</label>
+    <input type="text" id="github_repo" placeholder="owner/repo" />
+    <div class="hint">Exemplo: mrcsvg/meu-projeto</div>
 
-  <div id="success" class="success">Configuração salva com sucesso!</div>
-  <div id="error" class="error"></div>
+    <button id="saveBtn" onclick="saveSettings()">Salvar</button>
+
+    <div id="message"></div>
+  </div>
 
   <script>
     // Get URL params
     const params = new URLSearchParams(window.location.search);
     const websiteId = params.get('website_id');
-    const token = params.get('token');
 
-    // Load current settings on page load
-    window.CRISP_READY_TRIGGER = function() {
-      $crisp.onDataAcquired = function(namespace) {
-        if (namespace === 'plugin_settings') {
-          const settings = $crisp.data.plugin_settings;
-          if (settings && settings.settings && settings.settings.github_repo) {
-            document.getElementById('github_repo').value = settings.settings.github_repo;
-          }
-        }
-      };
-      $crisp.acquireData('plugin_settings');
-    };
+    // Load current settings
+    async function loadSettings() {
+      const loadingEl = document.getElementById('loading');
+      const contentEl = document.getElementById('content');
 
-    // Fallback
-    if (window.$crisp) {
-      window.CRISP_READY_TRIGGER();
-    }
-
-    async function saveSettings() {
-      const githubRepo = document.getElementById('github_repo').value.trim();
-      const successEl = document.getElementById('success');
-      const errorEl = document.getElementById('error');
-
-      successEl.style.display = 'none';
-      errorEl.style.display = 'none';
-
-      if (!githubRepo || !githubRepo.includes('/')) {
-        errorEl.textContent = 'Formato inválido. Use: owner/repo';
-        errorEl.style.display = 'block';
+      if (!websiteId) {
+        loadingEl.innerHTML = 'Erro: website_id não encontrado na URL';
         return;
       }
 
       try {
-        // Save via our API which will call Crisp REST API
+        const response = await fetch('/api/get-settings?website_id=' + websiteId);
+        const data = await response.json();
+
+        if (data.settings && data.settings.github_repo) {
+          document.getElementById('github_repo').value = data.settings.github_repo;
+        }
+
+        loadingEl.style.display = 'none';
+        contentEl.style.display = 'block';
+      } catch (err) {
+        loadingEl.style.display = 'none';
+        contentEl.style.display = 'block';
+      }
+    }
+
+    async function saveSettings() {
+      const githubRepo = document.getElementById('github_repo').value.trim();
+      const messageEl = document.getElementById('message');
+      const saveBtn = document.getElementById('saveBtn');
+
+      messageEl.innerHTML = '';
+      messageEl.className = 'message';
+
+      if (!githubRepo || !githubRepo.includes('/')) {
+        messageEl.innerHTML = 'Formato inválido. Use: owner/repo';
+        messageEl.className = 'message error';
+        return;
+      }
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Salvando...';
+
+      try {
         const response = await fetch('/api/save-settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -144,15 +161,23 @@
         });
 
         if (!response.ok) {
-          throw new Error('Erro ao salvar');
+          const data = await response.json();
+          throw new Error(data.error || 'Erro ao salvar');
         }
 
-        successEl.style.display = 'block';
+        messageEl.innerHTML = 'Configuração salva com sucesso!';
+        messageEl.className = 'message success';
       } catch (err) {
-        errorEl.textContent = err.message || 'Erro ao salvar configuração';
-        errorEl.style.display = 'block';
+        messageEl.innerHTML = err.message || 'Erro ao salvar configuração';
+        messageEl.className = 'message error';
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Salvar';
       }
     }
+
+    // Load on page ready
+    loadSettings();
   </script>
 </body>
 </html>
